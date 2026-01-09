@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>RFID Anmeldeversuche</title>
+    <style>
+        body { font-family: Arial; background: #111; color: #eee; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 8px; border-bottom: 1px solid #333; }
+        .AUTH { color: #00ff88; }
+        .DENY { color: #ff4444; }
+    </style>
+</head>
+<body>
+
+<h1>RFID Anmeldeversuche (Live)</h1>
+
+<table id="log">
+    <tr>
+        <th>Zeit</th>
+        <th>UID</th>
+        <th>Name</th>
+        <th>Status</th>
+    </tr>
+    {% for e in entries %}
+    <tr class="{{ e.status }}">
+        <td>{{ e.timestamp }}</td>
+        <td>{{ e.uid }}</td>
+        <td>{{ e.name }}</td>
+        <td>{{ e.status }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+<script>
+    const source = new EventSource("/events");
+
+    source.onmessage = function(event) {
+        const entry = JSON.parse(event.data);
+        const table = document.getElementById("log");
+        const row = table.insertRow(1);
+
+        row.className = entry.status;
+        row.insertCell(0).innerText = entry.timestamp;
+        row.insertCell(1).innerText = entry.uid;
+        row.insertCell(2).innerText = entry.name;
+        row.insertCell(3).innerText = entry.status;
+    };
+</script>
+
+</body>
+</html>

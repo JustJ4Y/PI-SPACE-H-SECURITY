@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from flask import Flask, render_template, Response
+from flask import Flask, render_template, Response, request, render_template_string, redirect, url_for, send_file # für DB request, render_template_string, redirect, url_for, send_file
 import serial
 import json
 from datetime import datetime
@@ -32,7 +32,68 @@ ALLOWED_UIDS = {
 
 app = Flask(__name__)
 event_queue = queue.Queue()
+DB = "photos.db" # für DB
 
+# für DB
+HTML = """
+<!doctype html>
+<title>Foto Galerie</title>
+<h1>Foto hochladen</h1>
+<form method="post" enctype="multipart/form-data">
+  <input type="file" name="photo" required>
+  <input type="submit" value="Upload">
+</form>
+
+<h2>Galerie</h2>
+{% for photo in photos %}
+  <img src="{{ url_for('get_photo', photo_id=photo[0]) }}" width="200">
+{% endfor %}
+"""
+
+# für DB
+def get_db():
+    return sqlite3.connect(DB)
+
+# für DB
+@app.route("/", methods=["GET", "POST"])
+def index():
+    if request.method == "POST":
+        file = request.files["photo"]
+        if file:
+            image_bytes = file.read()
+
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO photos (filename, image) VALUES (?, ?)",
+                (file.filename, image_bytes)
+            )
+            conn.commit()
+            conn.close()
+
+        return redirect(url_for("index"))
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM photos")
+    photos = cursor.fetchall()
+    conn.close()
+
+    return render_template_string(HTML, photos=photos)
+
+# für DB
+@app.route("/photo/<int:photo_id>")
+def get_photo(photo_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT image FROM photos WHERE id=?", (photo_id,))
+    image = cursor.fetchone()[0]
+    conn.close()
+
+    return send_file(
+        io.BytesIO(image),
+        mimetype="image/jpeg"
+    )
 
 def load_json():
     try:

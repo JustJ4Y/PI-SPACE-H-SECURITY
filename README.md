@@ -11,7 +11,7 @@ Mit einem RFID Schlüssel kann man den Bewegungssensor auch deaktivieren.
 ## Geplant
 ## -----------------------------------------------------------------------------------------
 ### Milestone Nr. 1
-Taster löst den Buzzer für 300ms aus und startet eine Kamera.
+Taster löst den Buzzer für 2s aus und startet eine Kamera.
 Ein Bewegungssensor programmieren das dauerhaft auf Bewegung wartet.
 ### Milestone Nr. 2
 Eine Website erstellen auf dem die Kameraübertragung zu sehen ist.  

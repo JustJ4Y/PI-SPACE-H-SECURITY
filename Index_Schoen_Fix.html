@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>PPI Home Security</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+
+  <style>
+    :root{
+      --bg1:#0b1020;
+      --bg2:#090a0f;
+      --card: rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.12);
+      --text:#e9edf5;
+      --muted:#aab3cc;
+      --shadow: 0 12px 40px rgba(0,0,0,0.45);
+
+      --motion:#3b82f6;
+      --auth:#22c55e;
+      --deny:#ef4444;
+    }
+
+    *{ box-sizing:border-box; }
+
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      background:
+        radial-gradient(900px 600px at 15% 10%, rgba(59,130,246,0.25), transparent 60%),
+        radial-gradient(800px 600px at 85% 15%, rgba(34,197,94,0.15), transparent 55%),
+        radial-gradient(800px 600px at 70% 85%, rgba(239,68,68,0.12), transparent 55%),
+        linear-gradient(160deg, var(--bg1), var(--bg2));
+      padding: 24px;
+    }
+
+    .wrap{ max-width: 1200px; margin:0 auto; }
+
+    header{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-end;
+      gap:16px;
+      margin-bottom:18px;
+    }
+
+    h1{ margin:0; font-size:28px; }
+    .sub{ font-size:13px; color:var(--muted); }
+
+    .status{
+      font-size:12px;
+      padding:8px 12px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,0.05);
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1.25fr 1fr;
+      gap:18px;
+    }
+
+    .card{
+      background: var(--card);
+      border:1px solid var(--border);
+      border-radius:18px;
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    .cardHeader{
+      padding:14px 16px;
+      border-bottom:1px solid rgba(255,255,255,0.08);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    }
+
+    .cardHeader h2{
+      margin:0;
+      font-size:16px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+
+    .dot{
+      width:10px; height:10px;
+      border-radius:999px;
+    }
+    .dot.motion{ background:var(--motion); }
+    .dot.rfid{ background:#a78bfa; }
+
+    .badge{
+      font-size:11px;
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,0.14);
+      background:rgba(255,255,255,0.06);
+      color:var(--muted);
+    }
+
+    .cardBody{
+      padding:14px;
+      max-height: calc(100vh - 170px);
+      overflow:auto;
+    }
+
+    .entry{
+      background: rgba(255,255,255,0.05);
+      border:1px solid rgba(255,255,255,0.10);
+      border-radius:14px;
+      padding:12px;
+      margin:10px 0;
+    }
+
+    .entry.motion{ border-left:4px solid var(--motion); }
+    .entry.rfid-auth{ border-left:4px solid var(--auth); }
+    .entry.rfid-deny{ border-left:4px solid var(--deny); }
+
+    .rowTop{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:10px;
+      margin-bottom:6px;
+    }
+
+    .time{
+      font-size:12px;
+      color:var(--muted);
+      white-space:nowrap;
+    }
+
+    .title{
+      font-size:13px;
+      line-height:1.35;
+    }
+
+    img.thumb{
+      display:block;
+      width:100%;
+      max-height:320px;
+      object-fit:cover;
+      border-radius:12px;
+      margin-top:10px;
+      border:1px solid rgba(255,255,255,0.12);
+    }
+
+    .small{
+      font-size:12px;
+      color:var(--muted);
+      margin-top:6px;
+    }
+
+    a{ color:#c7ffda; text-decoration:none; }
+    a:hover{ text-decoration:underline; }
+
+    .empty{
+      font-size:13px;
+      color:var(--muted);
+      padding:14px;
+      border:1px dashed rgba(255,255,255,0.18);
+      border-radius:14px;
+      background:rgba(255,255,255,0.03);
+    }
+
+    @media (max-width: 900px){
+      .grid{ grid-template-columns:1fr; }
+      .cardBody{ max-height:none; }
+    }
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1>PPI Home Security</h1>
+      <div class="sub">Live-Ãœberwachung: Bewegung & RFID</div>
+    </div>
+    <div class="status" id="status">Verbindung wird aufgebaut</div>
+  </header>
+
+  <div class="grid">
+
+    <!-- MOTION -->
+    <section class="card">
+      <div class="cardHeader">
+        <h2><span class="dot motion"></span>Bewegungssensor</h2>
+        <span class="badge" id="motionCount">0</span>
+      </div>
+      <div class="cardBody" id="motionLog">
+
+        {% set hasMotion = false %}
+        {% for e in entries %}
+          {% if e.type in ["MOTION", "MOTION_PHOTO"] %}
+            {% set hasMotion = true %}
+            <div class="entry motion" data-event-id="{{ e.event_id }}">
+              <div class="rowTop">
+                <div class="time">{{ e.timestamp }}</div>
+                <div class="badge">{{ e.type }}</div>
+              </div>
+              <div class="title">Bewegung erkannt</div>
+
+              {% if e.photo %}
+                <div class="small">
+                  <a href="/static/{{ e.photo }}" target="_blank">Foto</a>
+                </div>
+                <img class="thumb" src="/static/{{ e.photo }}">
+              {% else %}
+                <div class="small">Foto ausstehend!</div>
+              {% endif %}
+            </div>
+          {% endif %}
+        {% endfor %}
+
+        {% if not hasMotion %}
+          <div </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <!-- RFID -->
+    <section class="card">
+      <div class="cardHeader">
+        <h2><span class="dot rfid"></span>Scans</h2>
+        <span class="badge" id="scanCount">0</span>
+      </div>
+      <div class="cardBody" id="scanLog">
+
+        {% set hasRfid = false %}
+        {% for e in entries %}
+          {% if e.type == "RFID" %}
+            {% set hasRfid = true %}
+            <div class="entry {{ 'rfid-auth' if e.status == 'AUTH' else 'rfid-deny' }}">
+              <div class="rowTop">
+                <div class="time">{{ e.timestamp }}</div>
+                <div class="badge">{{ e.status }}</div>
+              </div>
+              <div class="title">
+                RFID: <b>{{ e.name }}</b>
+                <span class="small">({{ e.uid }})</span>
+              </div>
+            </div>
+          {% endif %}
+        {% endfor %}
+
+        {% if not hasRfid %}
+          <div </div>
+        {% endif %}
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+  const statusEl = document.getElementById("status");
+  const motionLog = document.getElementById("motionLog");
+  const scanLog = document.getElementById("scanLog");
+
+  const motionCountEl = document.getElementById("motionCount");
+  const scanCountEl = document.getElementById("scanCount");
+
+  function updateCounts(){
+    motionCountEl.textContent = motionLog.querySelectorAll(".entry.motion").length;
+    scanCountEl.textContent = scanLog.querySelectorAll(".entry.rfid-auth,.entry.rfid-deny").length;
+  }
+  updateCounts();
+
+  // Map: event_id -> motion div
+  const motionByEventId = new Map();
+  motionLog.querySelectorAll(".entry.motion").forEach(div => {
+    const eid = div.dataset.eventId;
+    if (eid) motionByEventId.set(eid, div);
+  });
+
+  function renderMotion(div, e){
+    div.className = "entry motion";
+    div.dataset.eventId = e.event_id;
+
+    let html = `
+      <div class="rowTop">
+        <div class="time">${e.timestamp}</div>
+        <div class="badge">${e.type}</div>
+      </div>
+      <div class="title">Bewegung erkannt</div>
+    `;
+
+    if (e.photo){
+      html += `
+        <div class="small"><a href="/static/${e.photo}" target="_blank">Foto</a></div>
+        <img class="thumb" src="/static/${e.photo}">
+      `;
+    } else {
+      html += `<div class="small">Foto ausstehend!</div>`;
+    }
+
+    div.innerHTML = html;
+  }
+
+  const source = new EventSource("/events");
+
+  source.onopen = () => statusEl.textContent = "Live verbunden";
+  source.onerror = () => statusEl.textContent = "Verbindung verloren";
+
+  source.onmessage = (event) => {
+    const e = JSON.parse(event.data);
+
+    if (e.type === "MOTION"){
+      const div = document.createElement("div");
+      renderMotion(div, e);
+      motionLog.prepend(div);
+      motionByEventId.set(e.event_id, div);
+      updateCounts();
+      return;
+    }
+
+    if (e.type === "MOTION_PHOTO"){
+      const existing = motionByEventId.get(e.event_id);
+      if (existing){
+        renderMotion(existing, e);
+      } else {
+        const div = document.createElement("div");
+        renderMotion(div, e);
+        motionLog.prepend(div);
+        motionByEventId.set(e.event_id, div);
+      }
+      updateCounts();
+      return;
+    }
+
+    if (e.type === "RFID"){
+      const div = document.createElement("div");
+      div.className = "entry " + (e.status === "AUTH" ? "rfid-auth" : "rfid-deny");
+      div.innerHTML = `
+        <div class="rowTop">
+          <div class="time">${e.timestamp}</div>
+          <div class="badge">${e.status}</div>
+        </div>
+        <div class="title">
+          RFID: <b>${e.name}</b>
+          <span class="small">(${e.uid})</span>
+        </div>
+      `;
+      scanLog.prepend(div);
+      updateCounts();
+    }
+  };
+</script>
+</body>
+</html>

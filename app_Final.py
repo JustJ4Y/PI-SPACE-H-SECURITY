@@ -30,8 +30,8 @@ SERIAL_PORT = "/dev/ttyACM0"
 BAUDRATE = 9600
 
 # Limits
-MAX_PHOTOS = 10
-MAX_EVENTS = 1000
+MAX_PHOTOS = 250
+MAX_EVENTS = 250
 
 # PIR
 PIR_PIN = 18
@@ -58,6 +58,14 @@ ALLOWED_UIDS = {
 # ------------------ APP ------------------
 app = Flask(__name__)
 event_queue = queue.Queue()
+
+# ------------------ TIME HELPERS ------------------
+def now_ts():
+    # unique timestamp with microseconds
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+
+def now_epoch():
+    return time.time()
 
 # ------------------ RGB LED ------------------
 rgb_led = None
@@ -161,53 +169,19 @@ def ensure_photo_dir():
     os.makedirs(PHOTO_DIR, exist_ok=True)
 
 
-def photo_rel_to_abs(rel_path: str):
-    # rel_path like: "photos/2026-...jpg"
-    if not rel_path:
-        return None
-    rel_path = rel_path.replace("\\", "/")
-    if rel_path.startswith("photos/"):
-        return os.path.join(BASE_DIR, "static", rel_path)
-    return None
-
-
 def trim_photos_db(max_rows=MAX_PHOTOS):
-    """
-    Keep only latest max_rows photos. Delete oldest from DB.
-    Also delete related motion files from static/photos if filename matches "motion_*.jpg"
-    (Uploads normally have arbitrary filenames and are DB-only.)
-    """
     conn = get_photos_db()
     cur = conn.cursor()
 
-    # How many rows?
     cur.execute("SELECT COUNT(*) FROM photos")
     count = cur.fetchone()[0] or 0
     excess = count - int(max_rows)
 
     if excess > 0:
-        # Fetch oldest rows to delete (id + filename)
-        cur.execute(
-            "SELECT id, filename FROM photos ORDER BY id ASC LIMIT ?",
-            (excess,)
-        )
-        to_delete = cur.fetchall()
-
-        # Delete those rows
-        ids = [row[0] for row in to_delete]
+        cur.execute("SELECT id FROM photos ORDER BY id ASC LIMIT ?", (excess,))
+        ids = [r[0] for r in cur.fetchall()]
         cur.executemany("DELETE FROM photos WHERE id = ?", [(i,) for i in ids])
         conn.commit()
-
-        # Best-effort: delete matching motion files
-        for _id, fn in to_delete:
-            try:
-                # We store DB filenames like "motion_YYYY-mm-dd...jpg" for motion photos
-                if isinstance(fn, str) and fn.startswith("motion_") and fn.endswith(".jpg"):
-                    # motion file saved by camera was named by timestamp without "motion_"
-                    # so we cannot map perfectly. We keep files unless you want aggressive cleanup.
-                    pass
-            except Exception:
-                pass
 
     conn.close()
 
@@ -219,12 +193,11 @@ def insert_photo_to_db(filename, image_bytes, mime="image/jpeg"):
     cur = conn.cursor()
     cur.execute(
         "INSERT INTO photos (filename, image, created_at, mime) VALUES (?, ?, ?, ?)",
-        (filename, image_bytes, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), mime)
+        (filename, image_bytes, now_ts(), mime)
     )
     conn.commit()
     conn.close()
 
-    # enforce limit
     try:
         trim_photos_db(MAX_PHOTOS)
     except Exception as e:
@@ -233,6 +206,7 @@ def insert_photo_to_db(filename, image_bytes, mime="image/jpeg"):
 
 # ------------------ DB: EVENTS ------------------
 def get_events_db():
+    # check_same_thread=False would be optional, but we always open new per call
     return sqlite3.connect(EVENTS_DB)
 
 
@@ -244,22 +218,50 @@ def init_events_db():
         CREATE TABLE IF NOT EXISTS events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             created_at TEXT NOT NULL,
+            created_at_epoch REAL NOT NULL,
             type TEXT,
             status TEXT,
             uid TEXT,
             name TEXT,
             photo TEXT,
+            event_id TEXT,
             payload TEXT
         )
     """)
     conn.commit()
+
+    # Migration: if table exists without epoch/event_id columns, try to add
+    try:
+        cur.execute("ALTER TABLE events ADD COLUMN created_at_epoch REAL")
+        conn.commit()
+    except Exception:
+        pass
+
+    try:
+        cur.execute("ALTER TABLE events ADD COLUMN event_id TEXT")
+        conn.commit()
+    except Exception:
+        pass
+
+    # If epoch could be NULL (older DB), fill best-effort
+    try:
+        cur.execute("UPDATE events SET created_at_epoch = COALESCE(created_at_epoch, 0) WHERE created_at_epoch IS NULL")
+        conn.commit()
+    except Exception:
+        pass
+
     conn.close()
 
 
 def normalize_event(entry: dict) -> dict:
     e = dict(entry) if isinstance(entry, dict) else {}
-    if "timestamp" not in e:
-        e["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    if "timestamp" not in e or not e["timestamp"]:
+        e["timestamp"] = now_ts()
+
+    if "epoch" not in e or not e["epoch"]:
+        e["epoch"] = now_epoch()
+
     if "type" not in e:
         e["type"] = "UNKNOWN"
     if "status" not in e:
@@ -270,6 +272,14 @@ def normalize_event(entry: dict) -> dict:
         e["name"] = None
     if "photo" not in e:
         e["photo"] = None
+
+    # event_id links related events (MOTION + MOTION_PHOTO)
+    if "event_id" not in e or not e["event_id"]:
+        e["event_id"] = None
+
+    if "id" not in e:
+        e["id"] = None
+
     return e
 
 
@@ -282,11 +292,7 @@ def trim_events_db(max_rows=MAX_EVENTS):
     excess = count - int(max_rows)
 
     if excess > 0:
-        # delete oldest ids
-        cur.execute(
-            "SELECT id FROM events ORDER BY id ASC LIMIT ?",
-            (excess,)
-        )
+        cur.execute("SELECT id FROM events ORDER BY id ASC LIMIT ?", (excess,))
         ids = [r[0] for r in cur.fetchall()]
         cur.executemany("DELETE FROM events WHERE id = ?", [(i,) for i in ids])
         conn.commit()
@@ -294,31 +300,55 @@ def trim_events_db(max_rows=MAX_EVENTS):
     conn.close()
 
 
-def insert_event_to_db(entry):
+def insert_event_to_db(entry) -> int:
     e = normalize_event(entry)
-    created_at = e.get("timestamp") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    created_at = e.get("timestamp") or now_ts()
+    created_at_epoch = float(e.get("epoch") or now_epoch())
+
     payload = json.dumps(e, ensure_ascii=False)
 
     conn = get_events_db()
     cur = conn.cursor()
     cur.execute(
-        "INSERT INTO events (created_at, type, status, uid, name, photo, payload) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (created_at, e.get("type"), e.get("status"), e.get("uid"), e.get("name"), e.get("photo"), payload)
+        """
+        INSERT INTO events (created_at, created_at_epoch, type, status, uid, name, photo, event_id, payload)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (created_at, created_at_epoch, e.get("type"), e.get("status"), e.get("uid"),
+         e.get("name"), e.get("photo"), e.get("event_id"), payload)
     )
     conn.commit()
+    new_id = cur.lastrowid
+
+    # Update payload with final id
+    try:
+        e2 = dict(e)
+        e2["id"] = new_id
+        payload2 = json.dumps(e2, ensure_ascii=False)
+        cur.execute("UPDATE events SET payload=? WHERE id=?", (payload2, new_id))
+        conn.commit()
+    except Exception:
+        pass
+
     conn.close()
 
-    # enforce limit
     try:
         trim_events_db(MAX_EVENTS)
     except Exception as e:
         print("[EVENTS] trim failed:", e)
 
+    return new_id
 
-def get_last_events(limit=300):
+
+def get_last_events(limit=500):
     conn = get_events_db()
     cur = conn.cursor()
-    cur.execute("SELECT payload FROM events ORDER BY id DESC LIMIT ?", (limit,))
+
+    cur.execute(
+        "SELECT payload FROM events ORDER BY created_at_epoch DESC, id DESC LIMIT ?",
+        (limit,)
+    )
     rows = cur.fetchall()
     conn.close()
 
@@ -394,20 +424,17 @@ def get_photo(photo_id):
     return send_file(io.BytesIO(image_bytes), mimetype=mime)
 
 
-# ------------------ HOME ------------------
 @app.route("/")
 def home():
     entries = get_last_events(limit=500)
     return render_template("index.html", entries=entries)
 
 
-# ------------------ DEBUG ------------------
 @app.route("/debug/events")
 def debug_events():
     return jsonify(get_last_events(limit=20))
 
 
-# ------------------ LIVE EVENTS (SSE) ------------------
 @app.route("/events")
 def events():
     def stream():
@@ -417,7 +444,6 @@ def events():
     return Response(stream(), mimetype="text/event-stream")
 
 
-# ------------------ CAMERA ------------------
 def take_photo_fswebcam():
     ensure_photo_dir()
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -444,10 +470,9 @@ def take_photo_fswebcam():
     except Exception:
         image_bytes = None
 
-    return rel_path, image_bytes
+    return rel_path.replace("\\", "/"), image_bytes
 
 
-# ------------------ THREAD WRAPPERS ------------------
 def rfid_listener_forever():
     while True:
         try:
@@ -466,7 +491,6 @@ def motion_listener_forever():
             time.sleep(2)
 
 
-# ------------------ RFID ------------------
 def rfid_listener():
     ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=1)
     print("[RFID] ready on", SERIAL_PORT)
@@ -477,37 +501,39 @@ def rfid_listener():
             continue
 
         uid = line.replace("UID:", "").strip()
-        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         if uid in ALLOWED_UIDS:
             entry = {
                 "type": "RFID",
-                "timestamp": ts,
+                "timestamp": now_ts(),
+                "epoch": now_epoch(),
                 "uid": uid,
                 "name": ALLOWED_UIDS[uid],
                 "status": "AUTH",
-                "photo": None
+                "photo": None,
+                "event_id": None
             }
             led_feedback("GREEN")
             ser.write(b"AUTH\n")
         else:
             entry = {
                 "type": "RFID",
-                "timestamp": ts,
+                "timestamp": now_ts(),
+                "epoch": now_epoch(),
                 "uid": uid,
                 "name": "Unbekannt",
                 "status": "DENY",
-                "photo": None
+                "photo": None,
+                "event_id": None
             }
             led_feedback("RED")
             ser.write(b"DENY\n")
 
         entry = normalize_event(entry)
-        insert_event_to_db(entry)
+        entry["id"] = insert_event_to_db(entry)
         event_queue.put(entry)
 
 
-# ------------------ MOTION + PHOTO ------------------
 def motion_listener():
     pir = MotionSensor(PIR_PIN)
     print("[MOTION] ready on GPIO", PIR_PIN)
@@ -529,8 +555,11 @@ def motion_listener():
         upd["type"] = "MOTION_PHOTO"
         upd["photo"] = rel_path
 
+        upd["timestamp"] = now_ts()
+        upd["epoch"] = now_epoch()
+
         upd = normalize_event(upd)
-        insert_event_to_db(upd)
+        upd["id"] = insert_event_to_db(upd)
         event_queue.put(upd)
 
     while True:
@@ -540,24 +569,27 @@ def motion_listener():
             continue
         last = now
 
-        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # event_id links MOTION <-> MOTION_PHOTO
+        eid = f"motion-{int(now*1000)}"
+
         base = normalize_event({
             "type": "MOTION",
-            "timestamp": ts,
+            "timestamp": now_ts(),
+            "epoch": now_epoch(),
             "status": "DETECTED",
             "photo": None,
             "uid": None,
-            "name": None
+            "name": None,
+            "event_id": eid
         })
 
-        insert_event_to_db(base)
+        base["id"] = insert_event_to_db(base)
         event_queue.put(base)
 
         threading.Thread(target=photo_worker, args=(base,), daemon=True).start()
         pir.wait_for_no_motion()
 
 
-# ------------------ START ------------------
 init_photos_db()
 init_events_db()
 init_rgb_led(active_high=True)

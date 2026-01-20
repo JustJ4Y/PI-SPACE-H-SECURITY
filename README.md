@@ -1,8 +1,9 @@
 # Home Security Project
 
+![Interface](https://github.com/JustJ4Y/PI-SPACE-H-SECURITY/blob/main/media/Pr%C3%A4sentation.jpg "Interface")
 <a href="https://www.youtube.com/watch?v=ef4Zy-ZsP7w"
-target="_blank"><img src="https://github.com/JustJ4Y/PI-SPACE-H-SECURITY/blob/main/media/Pr%C3%A4sentation.jpg" 
-alt="Promo Video" width="240" height="180" border="10" /></a>
+target="_blank">
+alt="YouTube Video" border="10" /></a>
 
 ## Description
 
@@ -10,7 +11,7 @@ This is a small Home Security Project using a Raspberry Pi 5 and an Arduino Uno 
 
 ## Installation
 
-Follow the wiring diagram and use the code in the main folder and you should be good to go.
+Follow the wiring diagram and use the code in the main folder and you should be good to go. The index.html shoud go in a templates folder. The app.py and the image should be in the same folder as the "templates" folder. The arduino.c goes on the Arduino.
 
 ## Wiring Diagram:
 

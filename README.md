@@ -1,12 +1,10 @@
 # Home Security Project
 
-![Interface](https://github.com/JustJ4Y/PI-SPACE-H-SECURITY/blob/main/media/Pr%C3%A4sentation.jpg "Interface")
-<a href="https://www.youtube.com/watch?v=ef4Zy-ZsP7w" target="_blank"
-alt="YouTube Video" border="10" /></a>
-
 ## Description
 
 This is a small Home Security Project using a Raspberry Pi 5 and an Arduino Uno to control a Motion Sensor taking snapshots of a USB web cam and an RFID Reader that could theoratically control a door. All with a nice looking webinterface running on the Pi.
+
+![Interface](https://github.com/JustJ4Y/PI-SPACE-H-SECURITY/blob/main/media/Pr%C3%A4sentation.jpg "Interface")
 
 ## Installation
 

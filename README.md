@@ -39,13 +39,13 @@ Anzeigen ob der Key gültig oder ungültig ist.
 Hinterreingang mit einer Kamera überwachen.
 Ein Bewegungssensor aktiviert die Kamera und erstellt ein Foto.
 
-## Milestone Nr. 4 
+### Milestone Nr. 4 
 Das Foto wird auf der Website angezeigt.
 und in eine Datenbank gespeichert.
 
 ### Milestone Nr. 5
 Datenbank erstellen um die Fotos zu speichern.
 
-## Milestone Nr. 6
+### Milestone Nr. 6
 Eine LED zeigt ob der Schlüssel gültig (grün) oder ungültig (rot) ist.
 Wenn der Bewegungssensor ausgelöst wird leuchtet die LED blau.

@@ -1,7 +1,7 @@
 # Home Security Project
 
 <a href="https://www.youtube.com/watch?v=ef4Zy-ZsP7w"
-target="_blank"><img src="https://www.youtube.com/watch?v=ef4Zy-ZsP7w/0.jpg" 
+target="_blank"><img src="https://github.com/JustJ4Y/PI-SPACE-H-SECURITY/blob/main/media/Pr%C3%A4sentation.jpg" 
 alt="Promo Video" width="240" height="180" border="10" /></a>
 
 ## Description
@@ -18,9 +18,5 @@ Follow the wiring diagram and use the code in the main folder and you should be 
 
 ## Web Interface:
 
-![Interface](https://github.com/JustJ4Y/PI-SPACE-H-SECURITY/blob/main/media/Screenshot_2026-01-20_151613.png "Interface")
-
-## House:
-
-![House](https://raw.githubusercontent.com/JustJ4Y/PI-SPACE-H-SECURITY/refs/heads/main/media/Pr%C3%A4sentation.jpg "House")
+![Interface](https://github.com/JustJ4Y/PI-SPACE-H-SECURITY/blob/main/media/Screenshot%202026-01-20%20151613.png "Interface")
 

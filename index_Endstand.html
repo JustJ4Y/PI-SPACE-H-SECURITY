@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>PI SPACE H SECURITY</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+
+  <style>
+    :root{
+      --bg1:#0b1020;
+      --bg2:#090a0f;
+      --card: rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.12);
+      --text:#e9edf5;
+      --muted:#aab3cc;
+      --shadow: 0 12px 40px rgba(0,0,0,0.45);
+
+      --motion:#3b82f6;
+      --auth:#22c55e;
+      --deny:#ef4444;
+      --rfidDot:#a78bfa;
+    }
+
+    *{ box-sizing:border-box; }
+
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      background:
+        radial-gradient(900px 600px at 15% 10%, rgba(59,130,246,0.25), transparent 60%),
+        radial-gradient(800px 600px at 85% 15%, rgba(34,197,94,0.15), transparent 55%),
+        radial-gradient(800px 600px at 70% 85%, rgba(239,68,68,0.12), transparent 55%),
+        linear-gradient(160deg, var(--bg1), var(--bg2));
+      padding: 24px;
+    }
+
+    .wrap{ max-width: 1200px; margin:0 auto; }
+
+    /* ===== TOP BAR (mit Logo mittig) ===== */
+    .topbar{
+      display:grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items:center;
+      gap:16px;
+      margin-bottom:18px;
+    }
+
+    .left{ justify-self:start; }
+    .center{ justify-self:center; }
+    .right{ justify-self:end; }
+
+    h1{ margin:0; font-size:28px; }
+    .sub{ font-size:13px; color:var(--muted); }
+
+    .status{
+      font-size:12px;
+      padding:8px 12px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,0.05);
+      user-select:none;
+      white-space:nowrap;
+    }
+
+    /* ===== LOGO + ORBIT (optional cool) ===== */
+    .logoWrap{
+      position:relative;
+      width:110px;
+      height:110px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .logo{
+      height:60px;
+      z-index:2;
+      animation: float 5s ease-in-out infinite;
+      filter:
+        drop-shadow(0 0 12px rgba(80,140,255,0.6))
+        drop-shadow(0 0 24px rgba(80,140,255,0.3));
+    }
+
+    .orbit{
+      position:absolute;
+      inset:0;
+      border-radius:50%;
+      border:1px dashed rgba(120,170,255,0.35);
+      animation: spin 12s linear infinite;
+      opacity:0.9;
+    }
+
+    .orbit::after{
+      content:"";
+      position:absolute;
+      top:-4px;
+      left:50%;
+      transform:translateX(-50%);
+      width:8px;
+      height:8px;
+      background:#ff4d4d;
+      border-radius:50%;
+      box-shadow:0 0 12px rgba(255,80,80,0.9);
+    }
+
+    /* status states (JS toggled) */
+    .logoWrap.online .orbit{ border-color: rgba(34,197,94,0.45); }
+    .logoWrap.online .orbit::after{
+      background:#22c55e;
+      box-shadow:0 0 12px rgba(34,197,94,0.95);
+    }
+
+    .logoWrap.offline .orbit{ border-color: rgba(239,68,68,0.45); }
+    .logoWrap.offline .orbit::after{
+      background:#ef4444;
+      box-shadow:0 0 12px rgba(239,68,68,0.95);
+    }
+
+    /* kurzer "Ping" bei neuen Events */
+    .logoWrap.ping{
+      animation: ping 420ms ease-out 1;
+    }
+
+    @keyframes ping{
+      0%{ transform:scale(1); }
+      45%{ transform:scale(1.06); }
+      100%{ transform:scale(1); }
+    }
+
+    @keyframes spin{
+      from{ transform:rotate(0deg); }
+      to{ transform:rotate(360deg); }
+    }
+
+    @keyframes float{
+      0%,100%{ transform:translateY(0); }
+      50%{ transform:translateY(-6px); }
+    }
+
+    /* ===== GRID / CARDS ===== */
+    .grid{
+      display:grid;
+      grid-template-columns: 1.25fr 1fr;
+      gap:18px;
+    }
+
+    .card{
+      background: var(--card);
+      border:1px solid var(--border);
+      border-radius:18px;
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    .cardHeader{
+      padding:14px 16px;
+      border-bottom:1px solid rgba(255,255,255,0.08);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    }
+
+    .cardHeader h2{
+      margin:0;
+      font-size:16px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+
+    .dot{
+      width:10px; height:10px;
+      border-radius:999px;
+    }
+    .dot.motion{ background:var(--motion); }
+    .dot.rfid{ background:var(--rfidDot); }
+
+    .badge{
+      font-size:11px;
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,0.14);
+      background:rgba(255,255,255,0.06);
+      color:var(--muted);
+      user-select:none;
+      white-space:nowrap;
+    }
+
+    .cardBody{
+      padding:14px;
+      max-height: calc(100vh - 190px);
+      overflow:auto;
+    }
+
+    .entry{
+      background: rgba(255,255,255,0.05);
+      border:1px solid rgba(255,255,255,0.10);
+      border-radius:14px;
+      padding:12px;
+      margin:10px 0;
+    }
+
+    .entry.motion{ border-left:4px solid var(--motion); }
+    .entry.rfid-auth{ border-left:4px solid var(--auth); }
+    .entry.rfid-deny{ border-left:4px solid var(--deny); }
+
+    .rowTop{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:10px;
+      margin-bottom:6px;
+    }
+
+    .time{
+      font-size:12px;
+      color:var(--muted);
+      white-space:nowrap;
+    }
+
+    .title{
+      font-size:13px;
+      line-height:1.35;
+    }
+
+    img.thumb{
+      display:block;
+      width:100%;
+      max-height:320px;
+      object-fit:cover;
+      border-radius:12px;
+      margin-top:10px;
+      border:1px solid rgba(255,255,255,0.12);
+    }
+
+    .small{
+      font-size:12px;
+      color:var(--muted);
+      margin-top:6px;
+    }
+
+    a{ color:#c7ffda; text-decoration:none; }
+    a:hover{ text-decoration:underline; }
+
+    .empty{
+      font-size:13px;
+      color:var(--muted);
+      padding:14px;
+      border:1px dashed rgba(255,255,255,0.18);
+      border-radius:14px;
+      background:rgba(255,255,255,0.03);
+    }
+
+    @media (max-width: 900px){
+      body{ padding:16px; }
+      .grid{ grid-template-columns:1fr; }
+      .cardBody{ max-height:none; }
+
+      .logoWrap{ width:80px; height:80px; }
+      .logo{ height:42px; }
+      h1{ font-size:22px; }
+      .sub{ font-size:12px; }
+    }
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+
+  <header class="topbar">
+    <div class="left">
+      <h1>PI SPACE H SECURITY</h1>
+      <div class="sub">Live-Ãœberwachung: Bewegung & RFID</div>
+    </div>
+
+    <div class="center">
+      <!-- Logo: lege es als static/logo.png ab -->
+      <div class="logoWrap offline" id="logoWrap">
+        <div class="orbit"></div>
+        <img src="/static/logo.png" class="logo" alt="Logo">
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="status" id="status">Verbindung wird aufgebaut</div>
+    </div>
+  </header>
+
+  <div class="grid">
+
+    <!-- MOTION -->
+    <section class="card">
+      <div class="cardHeader">
+        <h2><span class="dot motion"></span>Bewegungssensor</h2>
+      </div>
+      <div class="cardBody" id="motionLog">
+
+        {% set hasMotion = false %}
+        {% for e in entries %}
+          {% if e.type in ["MOTION", "MOTION_PHOTO"] %}
+            {% set hasMotion = true %}
+            <div class="entry motion" data-event-id="{{ e.event_id }}">
+              <div class="rowTop">
+                <div class="time">{{ e.timestamp }}</div>
+                <div class="badge">{{ e.type }}</div>
+              </div>
+              <div class="title">Bewegung erkannt</div>
+
+              {% if e.photo %}
+                <div class="small">
+                  <a href="/static/{{ e.photo }}" target="_blank">Foto</a>
+                </div>
+                <img class="thumb" src="/static/{{ e.photo }}">
+              {% else %}
+                <div class="small">Foto ausstehend!</div>
+              {% endif %}
+            </div>
+          {% endif %}
+        {% endfor %}
+
+        {% if not hasMotion %}
+        {% endif %}
+      </div>
+    </section>
+
+    <!-- RFID -->
+    <section class="card">
+      <div class="cardHeader">
+        <h2><span class="dot rfid"></span>Scans</h2>
+      </div>
+      <div class="cardBody" id="scanLog">
+
+        {% set hasRfid = false %}
+        {% for e in entries %}
+          {% if e.type == "RFID" %}
+            {% set hasRfid = true %}
+            <div class="entry {{ 'rfid-auth' if e.status == 'AUTH' else 'rfid-deny' }}">
+              <div class="rowTop">
+                <div class="time">{{ e.timestamp }}</div>
+                <div class="badge">{{ e.status }}</div>
+              </div>
+              <div class="title">
+                RFID: <b>{{ e.name }}</b>
+                <span class="small">({{ e.uid }})</span>
+              </div>
+            </div>
+          {% endif %}
+        {% endfor %}
+
+        {% if not hasRfid %}
+        {% endif %}
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+  const statusEl = document.getElementById("status");
+  const motionLog = document.getElementById("motionLog");
+  const scanLog = document.getElementById("scanLog");
+  const logoWrap = document.getElementById("logoWrap");
+
+  const motionCountEl = document.getElementById("motionCount");
+  const scanCountEl = document.getElementById("scanCount");
+
+  function updateCounts(){
+    motionCountEl.textContent = motionLog.querySelectorAll(".entry.motion").length;
+    scanCountEl.textContent = scanLog.querySelectorAll(".entry.rfid-auth,.entry.rfid-deny").length;
+  }
+  updateCounts();
+
+  // Map: event_id -> motion div
+  const motionByEventId = new MapNoch();
+  motionLog.querySelectorAll(".entry.motion").forEach(div => {
+    const eid = div.dataset.eventId;
+    if (eid) motionByEventId.set(eid, div);
+  });
+
+  function renderMotion(div, e){
+    div.className = "entry motion";
+    div.dataset.eventId = e.event_id;
+
+    let html = `
+      <div class="rowTop">
+        <div class="time">${e.timestamp}</div>
+        <div class="badge">${e.type}</div>
+      </div>
+      <div class="title">Bewegung erkannt</div>
+    `;
+
+    if (e.photo){
+      html += `
+        <div class="small"><a href="/static/${e.photo}" target="_blank">Foto</a></div>
+        <img class="thumb" src="/static/${e.photo}">
+      `;
+    } else {
+      html += `<div class="small">Foto ausstehend!</div>`;
+    }
+
+    div.innerHTML = html;
+  }
+
+  // kleines visuelles Feedback beim Event
+  function pingLogo(){
+    logoWrap.classList.remove("ping");
+    // reflow
+    void logoWrap.offsetWidth;
+    logoWrap.classList.add("ping");
+  }
+
+  const source = new EventSource("/events");
+
+  source.onopen = () => {
+    statusEl.textContent = "Live verbunden";
+    logoWrap.classList.remove("offline");
+    logoWrap.classList.add("online");
+  };
+
+  source.onerror = () => {
+    statusEl.textContent = "Verbindung verloren";
+    logoWrap.classList.remove("online");
+    logoWrap.classList.add("offline");
+  };
+
+  source.onmessage = (event) => {
+    const e = JSON.parse(event.data);
+
+    if (e.type === "MOTION"){
+      const div = document.createElement("div");
+      renderMotion(div, e);
+      motionLog.prepend(div);
+      motionByEventId.set(e.event_id, div);
+      updateCounts();
+      pingLogo();
+      return;
+    }
+
+    if (e.type === "MOTION_PHOTO"){
+      const existing = motionByEventId.get(e.event_id);
+      if (existing){
+        renderMotion(existing, e);
+      } else {
+        const div = document.createElement("div");
+        renderMotion(div, e);
+        motionLog.pr

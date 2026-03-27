@@ -8,7 +8,7 @@ This is a small Home Security Project using a Raspberry Pi 5 and an Arduino Uno 
 
 ## Installation
 
-Follow the wiring diagram and use the code in the main folder and you should be good to go. The index.html and the logo.png shoud go in a "templates" folder. The app.py should be in the same folder as the "templates" folder. The arduino.c goes on the Arduino.
+Follow the wiring diagram and use the code in the main folder and you should be good to go. The index.html and the logo.png shoud go in a "templates" folder. The app.py should be in the same folder as the "templates" folder. The arduino.c goes on the Arduino. After you started the app.py the Webinterface should be found under port 5000.
 
 ## Wiring Diagram:
 
